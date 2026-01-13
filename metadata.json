@@ -1,0 +1,5 @@
+{
+  "name": "Procurement Assistant",
+  "description": "A comprehensive tool for analyzing supplier proposals, generating gap analyses, draft emails, and scoring vendors using Gemini AI.",
+  "requestFramePermissions": []
+}
