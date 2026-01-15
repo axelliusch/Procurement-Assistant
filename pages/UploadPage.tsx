@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { UploadCloud, CheckCircle, AlertCircle, Eye, ArrowLeft, Trash2, Play, RefreshCw, Clock, FileText, X } from 'lucide-react';
+import { UploadCloud, CheckCircle, AlertCircle, Eye, ArrowLeft, Trash2, Play, RefreshCw, Clock, FileText, X, Cpu } from 'lucide-react';
 import { analyzeProposal, fileToBase64 } from '../services/geminiService';
 import AnalysisView from '../components/AnalysisView';
 import { AnalysisResult, HistoryItem, Note } from '../types';
@@ -27,15 +27,15 @@ const UploadPage: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [totalFilesToProcess, setTotalFilesToProcess] = useState(0);
   const [processedCount, setProcessedCount] = useState(0);
+  const [totalTokensUsed, setTotalTokensUsed] = useState(0);
   
   // Smooth Progress Simulation
   const [currentFileProgress, setCurrentFileProgress] = useState(0); // 0-100 for the CURRENT file
-  const [estimatedSecondsRemaining, setEstimatedSecondsRemaining] = useState(0);
   
   // Refs to manage intervals without causing re-renders loop
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Heuristic: Estimated seconds per document analysis
+  // Heuristic: Estimated seconds per document analysis (used for bar speed only, not displayed)
   const SECONDS_PER_DOC = 12; 
 
   // Cleanup on unmount
@@ -46,7 +46,8 @@ const UploadPage: React.FC = () => {
   }, []);
 
   // Calculate Total Percentage
-  // Formula: ( (FilesDone * 100) + CurrentFileProgress ) / TotalFiles
+  // Formula: ( (ProcessedCount * 100) + CurrentFileProgress ) / TotalFiles
+  // We clamp it to 100 to avoid the "Scan error" visual glitch where it exceeds 100%
   const totalPercentage = totalFilesToProcess > 0 
     ? Math.min(100, Math.round(((processedCount * 100) + currentFileProgress) / totalFilesToProcess)) 
     : 0;
@@ -76,6 +77,7 @@ const UploadPage: React.FC = () => {
           setProcessedCount(0);
           setTotalFilesToProcess(0);
           setCurrentFileProgress(0);
+          setTotalTokensUsed(0);
           setIsProcessing(false);
       }
   };
@@ -95,14 +97,14 @@ const UploadPage: React.FC = () => {
               if (prev >= 99) return 99;
               return prev + increment;
           });
-          
-          setEstimatedSecondsRemaining(prev => Math.max(0, prev - 0.2));
       }, 200);
   };
 
   const stopProgressSimulation = () => {
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
-      setCurrentFileProgress(100); // Jump to done for this file
+      // We do NOT jump to 100 here immediately to prevent visual jumps if another file starts instantly
+      // Instead, we let the processedCount increment handle the math in totalPercentage
+      setCurrentFileProgress(0); 
   };
 
   const handleAnalyze = async () => {
@@ -112,7 +114,7 @@ const UploadPage: React.FC = () => {
     setIsProcessing(true);
     setTotalFilesToProcess(itemsToProcess.length);
     setProcessedCount(0);
-    setEstimatedSecondsRemaining(itemsToProcess.length * SECONDS_PER_DOC);
+    setTotalTokensUsed(0);
 
     for (const item of itemsToProcess) {
        // Update UI to show analyzing
@@ -125,6 +127,11 @@ const UploadPage: React.FC = () => {
            const base64 = await fileToBase64(item.file);
            const result = await analyzeProposal(base64, item.file.type);
            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'success', result } : i));
+           
+           if (result.tokenUsage) {
+               setTotalTokensUsed(prev => prev + result.tokenUsage!.totalTokens);
+           }
+
        } catch (err: any) {
            console.error(err);
            setQueue(prev => prev.map(i => i.id === item.id ? { ...i, status: 'error', error: err.message || "Analysis failed" } : i));
@@ -135,7 +142,6 @@ const UploadPage: React.FC = () => {
     }
 
     setIsProcessing(false);
-    setEstimatedSecondsRemaining(0);
   };
 
   const saveToHistory = (item: QueueItem): string | null => {
@@ -202,6 +208,7 @@ const UploadPage: React.FC = () => {
               <div className="space-y-6">
                   <div className="flex justify-between items-center">
                     <button 
+                        type="button"
                         onClick={() => setViewingItemId(null)}
                         className="text-sm text-slate-500 hover:text-blue-600 flex items-center px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors"
                     >
@@ -264,21 +271,25 @@ const UploadPage: React.FC = () => {
       </div>
 
       {/* Progress Bar Section */}
-      {isProcessing && (
+      {(isProcessing || totalTokensUsed > 0) && (
           <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-6 animate-fade-in">
               <div className="flex justify-between items-end mb-2">
                   <div>
                     <h3 className="text-blue-900 font-semibold flex items-center">
-                        Analyzing Documents...
-                        <span className="ml-3 text-xs font-normal text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full flex items-center">
-                            <Clock className="w-3 h-3 mr-1" />
-                            ~{Math.ceil(estimatedSecondsRemaining)}s remaining
-                        </span>
+                        {isProcessing ? 'Analyzing Documents...' : 'Analysis Complete'}
                     </h3>
-                    <p className="text-xs text-slate-500 mt-1">
-                        Currently processing: <span className="font-medium text-slate-700">{processingItem?.file.name || '...'}</span>
-                        <span className="ml-2 text-slate-400">({processedCount + 1} of {totalFilesToProcess})</span>
-                    </p>
+                    <div className="flex items-center space-x-4 mt-2">
+                        {isProcessing && (
+                            <p className="text-xs text-slate-500">
+                                Currently processing: <span className="font-medium text-slate-700">{processingItem?.file.name || '...'}</span>
+                                <span className="ml-2 text-slate-400">({processedCount + 1} of {totalFilesToProcess})</span>
+                            </p>
+                        )}
+                        <span className="text-xs font-medium text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full flex items-center">
+                            <Cpu className="w-3 h-3 mr-1" />
+                            API Usage: {totalTokensUsed.toLocaleString()} tokens
+                        </span>
+                    </div>
                   </div>
                   <span className="text-2xl font-bold text-blue-600">{totalPercentage}%</span>
               </div>
@@ -364,9 +375,16 @@ const UploadPage: React.FC = () => {
                                             Done
                                        </span>
                                        {item.result && (
-                                           <span className={`text-[10px] font-bold ${item.result.score >= 80 ? 'text-green-600' : item.result.score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                               Score: {item.result.score}
-                                           </span>
+                                           <div className="flex flex-col items-end">
+                                               <span className={`text-[10px] font-bold ${item.result.score >= 80 ? 'text-green-600' : item.result.score >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                                   Score: {item.result.score}
+                                               </span>
+                                               {item.result.tokenUsage && (
+                                                   <span className="text-[9px] text-slate-400 mt-0.5">
+                                                       {item.result.tokenUsage.totalTokens} tokens
+                                                   </span>
+                                               )}
+                                           </div>
                                        )}
                                   </div>
                               )}

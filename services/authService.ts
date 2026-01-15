@@ -191,7 +191,14 @@ export const authService = {
     // Check uniqueness if username is being updated
     if (updates.username) {
         if (users.find(u => u.username === updates.username && u.id !== userId)) {
-            throw new Error("Username taken");
+            throw new Error("Username already taken.");
+        }
+    }
+
+    // Check uniqueness if email is being updated
+    if (updates.email) {
+        if (users.find(u => u.email === updates.email && u.id !== userId)) {
+            throw new Error("Email address already registered by another user.");
         }
     }
 

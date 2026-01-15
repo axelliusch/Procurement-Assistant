@@ -52,6 +52,12 @@ export interface ScoringCategory {
   reasoning: string;
 }
 
+export interface TokenUsage {
+  promptTokens: number;
+  responseTokens: number;
+  totalTokens: number;
+}
+
 export interface AnalysisResult {
   summary: string;
   extracted_fields: ExtractedField[];
@@ -66,6 +72,7 @@ export interface AnalysisResult {
   vendor_credibility_summary?: string | VendorCredibilityAnalysis;
   vendor_identification?: VendorIdentification;
   history_log?: string;
+  tokenUsage?: TokenUsage; // Added to track API credit usage
 }
 
 export interface UploaderInfo {

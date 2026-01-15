@@ -302,9 +302,20 @@ ${settings.promptHistory}
     // Clean Markdown if present (sometimes models wrap JSON in markdown blocks despite instructions)
     let jsonString = response.text.trim();
     jsonString = jsonString.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+    
+    // Extract Usage Metadata
+    const usage = response.usageMetadata;
+    const tokenUsage = {
+        promptTokens: usage?.promptTokenCount || 0,
+        responseTokens: usage?.candidatesTokenCount || 0,
+        totalTokens: usage?.totalTokenCount || 0
+    };
 
     try {
-        return JSON.parse(jsonString) as AnalysisResult;
+        const parsedJson = JSON.parse(jsonString) as AnalysisResult;
+        // Inject token usage into the result
+        parsedJson.tokenUsage = tokenUsage;
+        return parsedJson;
     } catch (parseError) {
         console.error("JSON Parse Error:", jsonString);
         throw new Error("Data Parsing Error: The AI analysis completed, but the output format was invalid. This often happens with very long or complex documents that cause the AI to cut off the response mid-stream. Please try uploading a smaller section or a simpler document.");

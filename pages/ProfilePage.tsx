@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
@@ -8,6 +9,7 @@ const ProfilePage: React.FC = () => {
   const [username, setUsername] = useState(user?.username || '');
   const [firstName, setFirstName] = useState(user?.firstName || '');
   const [lastName, setLastName] = useState(user?.lastName || '');
+  const [email, setEmail] = useState(user?.email || '');
   
   const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
@@ -18,10 +20,10 @@ const ProfilePage: React.FC = () => {
   const handleUpdateProfile = (e: React.FormEvent) => {
     e.preventDefault();
     try {
-        const hasChanges = username !== user.username || firstName !== user.firstName || lastName !== user.lastName;
+        const hasChanges = username !== user.username || firstName !== user.firstName || lastName !== user.lastName || email !== user.email;
         
         if (hasChanges) {
-            authService.updateProfile(user.id, { username, firstName, lastName });
+            authService.updateProfile(user.id, { username, firstName, lastName, email });
             refreshUser();
             setMessage({ type: 'success', text: 'Profile updated successfully' });
         }
@@ -63,7 +65,12 @@ const ProfilePage: React.FC = () => {
         <form onSubmit={handleUpdateProfile} className="space-y-4">
             <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                <input type="email" disabled value={user.email} className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed" />
+                <input 
+                    type="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" 
+                />
             </div>
             
             <div className="grid grid-cols-2 gap-4">
